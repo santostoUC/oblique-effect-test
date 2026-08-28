@@ -53,7 +53,7 @@ table{width:100%;border-collapse:collapse;margin-top:15px}th,td{padding:8px;bord
 
 <div id="done" class="card hidden center">
 <h2>Experiment complete</h2>
-<p>Thank you. Your responses have been recorded on this device and submitted to your instructor.</p>
+<p>Thank you. Your responses have been recorded on this device.</p>
 <div id="summary"></div>
 <p class="small muted">Please wait for your instructor's instructions before leaving this page.</p>
 </div>
@@ -67,7 +67,7 @@ const canvas=document.getElementById('stim'), ctx=canvas.getContext('2d');
 const trialLabel=document.getElementById('trialLabel'), status=document.getElementById('status'), summary=document.getElementById('summary');
 
 let pid="", conditions=[], trialIndex=0, running=false, startTime=0, raf=0, currentFreq=0;
-let results=[];\nconst DATA_ENDPOINT="https://script.google.com/macros/s/AKfycbxBKf6FPRoJhmif12swN2BP5WSK6nlm1rhSI_rFbGxfbCI1Ye0wHq_xg7N-a4vAvcctbQ/exec";
+let results=[];
 
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 
@@ -115,10 +115,7 @@ function recordResponse(freq,auto=false){
   if(!running && !auto)return;
   running=false; cancelAnimationFrame(raf);
   const reactionTime=(performance.now()-startTime)/1000;
-  const record={participant:pid,trial:trialIndex+1,orientation:conditionName(currentCondition()),angle:currentCondition(),threshold:+freq.toFixed(2),seconds:+reactionTime.toFixed(2),automatic:auto};
-  results.push(record);
-  // Send this trial to the instructor's Google Sheet.
-  fetch(DATA_ENDPOINT,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify(record)}).catch(()=>{});
+  results.push({participant:pid,trial:trialIndex+1,orientation:conditionName(currentCondition()),angle:currentCondition(),threshold:+freq.toFixed(2),seconds:+reactionTime.toFixed(2),automatic:auto});
   trialIndex++;
   if(trialIndex>=conditions.length){finish();return;}
   status.textContent="Response recorded. Next trial…";
