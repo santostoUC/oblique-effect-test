@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Oblique Effect — Classroom Experiment</title>
+<style>
+body{font-family:Arial,Helvetica,sans-serif;margin:0;background:#f6f6f6;color:#171717}
+.wrap{max-width:900px;margin:auto;padding:24px}
+.card{background:white;border:1px solid #ddd;border-radius:14px;padding:20px;margin:14px 0}
+h1{margin:0 0 8px;font-size:28px}.muted{color:#666}.hidden{display:none}
+label{display:block;font-weight:bold;margin:12px 0 6px}
+input{font-size:18px;padding:10px;border:1px solid #bbb;border-radius:8px;width:220px}
+button{font-size:18px;padding:13px 18px;border:1px solid #aaa;border-radius:9px;background:#fff;cursor:pointer;margin:5px}
+button.primary{background:#111;color:#fff;border-color:#111}
+button.big{font-size:21px;font-weight:bold;padding:18px 24px;min-width:320px}
+.stage{background:#fff;border:1px solid #bbb;border-radius:10px;display:flex;justify-content:center;align-items:center;min-height:320px}
+canvas{max-width:100%;height:auto}
+.center{text-align:center}.status{font-size:17px;margin-top:12px;min-height:25px}
+table{width:100%;border-collapse:collapse;margin-top:15px}th,td{padding:8px;border-bottom:1px solid #ddd;text-align:left}
+.small{font-size:14px}.warning{background:#fff7d6;border:1px solid #e1c75a;padding:12px;border-radius:9px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="card">
+<h1>Oblique Effect: Visual Acuity Experiment</h1>
+<p class="muted">A short classroom demonstration of orientation-dependent visual resolution.</p>
+</div>
+
+<div id="setup" class="card">
+<h2>Before you begin</h2>
+<p>Use the device you will use for the experiment. Hold it at a comfortable, consistent viewing distance. Do not zoom the browser.</p>
+<div class="warning small"><b>Important:</b> This is a classroom demonstration, not a clinical vision test. Screen size, viewing distance, and display quality affect the result.</div>
+<label for="pid">Anonymous participant ID</label>
+<input id="pid" maxlength="20" placeholder="e.g., 042">
+<div><button id="begin" class="primary">Begin experiment</button></div>
+</div>
+
+<div id="experiment" class="hidden">
+<div class="card center">
+<p id="trialLabel" class="muted"></p>
+<h2>Watch the lines</h2>
+<p>The lines will become progressively finer. Press the button <b>as soon as you can no longer clearly resolve the individual lines.</b></p>
+</div>
+<div class="stage"><canvas id="stim" width="760" height="320" aria-label="Black and white grating"></canvas></div>
+<div class="card center">
+<button id="respond" class="big primary">I CAN NO LONGER RESOLVE THE LINES</button>
+<p class="small">You can also press the SPACE bar.</p>
+<div id="status" class="status" aria-live="polite"></div>
+</div>
+</div>
+
+<div id="done" class="card hidden center">
+<h2>Experiment complete</h2>
+<p>Thank you. Your responses have been recorded on this device.</p>
+<div id="summary"></div>
+<p class="small muted">Please wait for your instructor's instructions before leaving this page.</p>
+</div>
+</div>
+
+<script>
+(() => {
+const setup=document.getElementById('setup'), exp=document.getElementById('experiment'), done=document.getElementById('done');
+const pidInput=document.getElementById('pid'), begin=document.getElementById('begin'), respond=document.getElementById('respond');
+const canvas=document.getElementById('stim'), ctx=canvas.getContext('2d');
+const trialLabel=document.getElementById('trialLabel'), status=document.getElementById('status'), summary=document.getElementById('summary');
+
+let pid="", conditions=[], trialIndex=0, running=false, startTime=0, raf=0, currentFreq=0;
+let results=[];
+
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+
+function draw(freq, angle){
+  const w=canvas.width,h=canvas.height;
+  ctx.clearRect(0,0,w,h);
+  ctx.save(); ctx.translate(w/2,h/2); ctx.rotate(angle*Math.PI/180);
+  ctx.fillStyle="#fff"; ctx.fillRect(-w*2,-h*2,w*4,h*4);
+  // Higher freq = finer stripes. Period is in canvas pixels.
+  const period=Math.max(4,58 - freq*1.12);
+  const bar=period/2;
+  ctx.fillStyle="#111";
+  for(let x=-w*3;x<w*3;x+=period) ctx.fillRect(x,-h*3,bar,h*6);
+  ctx.restore();
+}
+
+function currentCondition(){return conditions[trialIndex];}
+function conditionName(c){return c===0?"Vertical":c===90?"Horizontal":"45° Oblique";}
+
+function startTrial(){
+  cancelAnimationFrame(raf);
+  running=true; startTime=performance.now(); currentFreq=2;
+  const c=currentCondition();
+  trialLabel.textContent=`Trial ${trialIndex+1} of ${conditions.length} — ${conditionName(c)}`;
+  status.textContent="Watch closely…";
+  draw(currentFreq,c);
+  raf=requestAnimationFrame(step);
+}
+
+function step(now){
+  if(!running)return;
+  const elapsed=(now-startTime)/1000;
+  currentFreq=Math.min(45,2+elapsed*4.0);
+  draw(currentFreq,currentCondition());
+  if(currentFreq>=45){
+    running=false;
+    status.textContent="Maximum difficulty reached. The trial is being recorded.";
+    recordResponse(currentFreq,true);
+    return;
+  }
+  raf=requestAnimationFrame(step);
+}
+
+function recordResponse(freq,auto=false){
+  if(!running && !auto)return;
+  running=false; cancelAnimationFrame(raf);
+  const reactionTime=(performance.now()-startTime)/1000;
+  results.push({participant:pid,trial:trialIndex+1,orientation:conditionName(currentCondition()),angle:currentCondition(),threshold:+freq.toFixed(2),seconds:+reactionTime.toFixed(2),automatic:auto});
+  trialIndex++;
+  if(trialIndex>=conditions.length){finish();return;}
+  status.textContent="Response recorded. Next trial…";
+  setTimeout(startTrial,700);
+}
+
+function finish(){
+  exp.classList.add("hidden"); done.classList.remove("hidden");
+  const means={};
+  for(const r of results){(means[r.orientation]??=[]).push(r.threshold);}
+  let html="<table><tr><th>Orientation</th><th>Your mean threshold</th></tr>";
+  for(const k of ["Vertical","Horizontal","45° Oblique"]){
+    const a=means[k]||[]; const m=a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
+    html+=`<tr><td>${k}</td><td>${m===null?"—":m.toFixed(1)}</td></tr>`;
+  }
+  html+="</table><p class='small muted'>Higher threshold = you were able to resolve finer detail.</p>";
+  summary.innerHTML=html;
+}
+
+begin.addEventListener("click",()=>{
+  pid=pidInput.value.trim()||"anonymous";
+  // Randomized condition order; each condition appears twice.
+  conditions=shuffle([0,90,45,0,90,45]);
+  trialIndex=0; results=[];
+  setup.classList.add("hidden"); exp.classList.remove("hidden");
+  startTrial();
+});
+
+respond.addEventListener("click",()=>{if(running)recordResponse(currentFreq,false);});
+document.addEventListener("keydown",e=>{
+  if(e.code==="Space" && !exp.classList.contains("hidden") && running){
+    e.preventDefault(); recordResponse(currentFreq,false);
+  }
+});
+})();
+</script>
+</body>
+</html>
